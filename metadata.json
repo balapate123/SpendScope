@@ -1,0 +1,5 @@
+{
+  "name": "SpendScope",
+  "description": "A production-grade finance platform featuring dashboard analytics, debt strategy simulation, and transaction management.",
+  "requestFramePermissions": []
+}
