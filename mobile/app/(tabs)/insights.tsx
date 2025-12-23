@@ -1,9 +1,9 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Dimensions } from 'react-native';
 import React, { useState, useEffect, useCallback } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, borderRadius } from '../../constants/Theme';
 import { Calendar, Trophy, ChevronRight, X, BarChart2, Activity } from 'lucide-react-native';
-import { PieChart, LineChart } from 'react-native-gifted-charts';
+import { PieChart, LineChart, BarChart } from 'react-native-gifted-charts';
 import axios from 'axios';
 import { API_URL } from '../../constants/Config';
 import { useFocusEffect } from 'expo-router';
@@ -25,6 +25,8 @@ interface CategoryData {
     icon: string;
 }
 
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
 export default function Insights() {
     const [transactions, setTransactions] = useState<Transaction[]>([]);
     const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
@@ -32,6 +34,7 @@ export default function Insights() {
     const [focusedPie, setFocusedPie] = useState<{ name: string; amount: number } | null>(null);
     const [trendMode, setTrendMode] = useState<'7Days' | 'LastWeek' | 'Year'>('7Days');
     const [selectedTrendPoint, setSelectedTrendPoint] = useState<{ label: string, value: number } | null>(null);
+    const [chartType, setChartType] = useState<'bar' | 'line'>('line');
 
     const fetchTransactions = async () => {
         try {
@@ -190,15 +193,19 @@ export default function Insights() {
                 })
                 .reduce((sum, t) => sum + t.amount, 0);
 
+            const roundedTotal = Math.round(total);
             return {
-                value: total,
+                value: roundedTotal,
                 label,
+                frontColor: colors.chartPurple,
                 labelTextStyle: { color: colors.textSecondary, fontSize: 10 },
+                onPress: () => setSelectedTrendPoint({ label, value: roundedTotal }),
             };
         });
     };
 
-    const trendData = getTrendData();
+    // Deep clone data to prevent React Compiler frozen object issues with chart library mutations
+    const trendData = JSON.parse(JSON.stringify(getTrendData()));
 
     const openCategoryDetail = (category: CategoryData) => {
         setSelectedCategory(category);
@@ -267,6 +274,122 @@ export default function Insights() {
                         </View>
                     </View>
                 )}
+
+                {/* Trend Chart */}
+                <View style={[styles.breakdownCard, { minHeight: 400 }]}>
+                    <View style={styles.chartHeader}>
+                        <View style={styles.chartTitleRow}>
+                            <Text style={styles.sectionTitle}>Spending History</Text>
+                            <View style={styles.chartIconBadge}>
+                                <Activity size={16} color={colors.primary} />
+                            </View>
+                        </View>
+                        <View style={styles.periodToggle}>
+                            <TouchableOpacity
+                                style={[styles.periodButton, chartType === 'bar' && styles.periodButtonActive]}
+                                onPress={() => setChartType('bar')}
+                            >
+                                <BarChart2 size={16} color={chartType === 'bar' ? colors.textPrimary : colors.textMuted} />
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.periodButton, chartType === 'line' && styles.periodButtonActive]}
+                                onPress={() => setChartType('line')}
+                            >
+                                {/* Using Activity icon as placeholder for Line Chart icon equivalent */}
+                                <Activity size={16} color={chartType === 'line' ? colors.textPrimary : colors.textMuted} />
+                            </TouchableOpacity>
+                        </View>
+                    </View>
+
+                    <View style={{ flexDirection: 'row', justifyContent: 'flex-end', alignItems: 'center', marginBottom: 20 }}>
+                        {selectedTrendPoint && (
+                            <View style={{ backgroundColor: colors.cardBackgroundLight, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 }}>
+                                <Text style={{ color: colors.textPrimary, fontWeight: 'bold' }}>
+                                    {selectedTrendPoint.label} <Text style={{ color: colors.primary }}>${selectedTrendPoint.value}</Text>
+                                </Text>
+                            </View>
+                        )}
+                    </View>
+
+                    <View style={styles.chartContainer}>
+                        {chartType === 'bar' ? (
+                            <BarChart
+                                key={`bar-${trendMode}`}
+                                data={trendData}
+                                width={SCREEN_WIDTH - 120}
+                                barWidth={trendMode === 'Year' ? 20 : 30}
+                                spacing={trendMode === 'Year' ? 16 : 24}
+                                initialSpacing={10}
+                                endSpacing={10}
+                                roundedTop
+                                roundedBottom
+                                xAxisThickness={0}
+                                yAxisThickness={0}
+                                yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
+                                noOfSections={4}
+                                maxValue={(() => {
+                                    const maxVal = Math.max(...trendData.map((d: any) => d.value));
+                                    return maxVal > 0 ? Math.ceil(maxVal * 1.25) : 100;
+                                })()}
+                                backgroundColor={colors.cardBackground}
+                                hideRules
+                                isAnimated
+                                animationDuration={500}
+                                barBorderRadius={6}
+                                showValuesAsTopLabel
+                                topLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
+                            />
+                        ) : (
+                            <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+                                <LineChart
+                                    key={`line-${trendMode}`}
+                                    data={trendData}
+                                    color={colors.chartPurple}
+                                    thickness={3}
+                                    hideDataPoints={false}
+                                    dataPointsColor={colors.chartPurple}
+                                    dataPointsRadius={5}
+                                    spacing={trendMode === 'Year' ? 60 : 70}
+                                    initialSpacing={20}
+                                    endSpacing={40}
+                                    xAxisThickness={0}
+                                    yAxisThickness={0}
+                                    yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
+                                    noOfSections={4}
+                                    maxValue={(() => {
+                                        const maxVal = Math.max(...trendData.map((d: any) => d.value));
+                                        return maxVal > 0 ? Math.ceil(maxVal * 1.25) : 100;
+                                    })()}
+                                    backgroundColor={colors.cardBackground}
+                                    hideRules
+                                    isAnimated
+                                    animationDuration={800}
+                                    curved
+                                    areaChart
+                                    startFillColor={colors.chartPurple}
+                                    endFillColor={colors.cardBackground}
+                                    startOpacity={0.3}
+                                    endOpacity={0.05}
+                                    pointerConfig={{
+                                        pointerStripHeight: 160,
+                                        pointerStripColor: 'rgba(150,150,150,0.6)',
+                                        pointerStripWidth: 2,
+                                        pointerColor: colors.chartPurple,
+                                        radius: 8,
+                                        pointerLabelWidth: 0,
+                                        pointerLabelHeight: 0,
+                                        pointerLabelComponent: (items: any) => {
+                                            if (items[0]) {
+                                                setTimeout(() => setSelectedTrendPoint({ label: items[0].label, value: items[0].value }), 0);
+                                            }
+                                            return null;
+                                        },
+                                    }}
+                                />
+                            </ScrollView>
+                        )}
+                    </View>
+                </View>
 
                 {/* Spending Breakdown */}
                 <View style={styles.breakdownCard}>
@@ -348,66 +471,7 @@ export default function Insights() {
                     )}
                 </View>
 
-                {/* Trends */}
-                <View style={styles.historyCard}>
-                    <View style={styles.historyHeader}>
-                        <View style={styles.trendTitleRow}>
-                            <Text style={styles.sectionTitle}>
-                                {trendMode === 'Year' ? 'Monthly Trend' : 'Weekly Trend'}
-                            </Text>
-                            <View style={styles.trendIconBadge}>
-                                <Activity size={14} color={colors.textSecondary} />
-                            </View>
-                        </View>
-                        {selectedTrendPoint && (
-                            <View style={styles.selectedValueDisplay}>
-                                <Text style={styles.selectedValueDay}>{selectedTrendPoint.label}</Text>
-                                <Text style={styles.selectedValueAmount}>${selectedTrendPoint.value.toLocaleString()}</Text>
-                            </View>
-                        )}
-                    </View>
-                    <View style={styles.barChartContainer}>
-                        <LineChart
-                            data={trendData}
-                            color={colors.chartPurple}
-                            thickness={3}
-                            hideDataPoints={false}
-                            dataPointsColor={colors.chartPurple}
-                            dataPointsRadius={5}
-                            xAxisThickness={0}
-                            yAxisThickness={0}
-                            yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
-                            noOfSections={4}
-                            backgroundColor={colors.cardBackground}
-                            hideRules
-                            isAnimated
-                            animationDuration={800}
-                            curved
-                            areaChart
-                            startFillColor={colors.chartPurple}
-                            endFillColor={colors.cardBackground}
-                            startOpacity={0.3}
-                            endOpacity={0.05}
-                            initialSpacing={20}
-                            endSpacing={20}
-                            pointerConfig={{
-                                pointerStripHeight: 160,
-                                pointerStripColor: 'rgba(150,150,150,0.6)',
-                                pointerStripWidth: 2,
-                                pointerColor: colors.chartPurple,
-                                radius: 8,
-                                pointerLabelWidth: 0,
-                                pointerLabelHeight: 0,
-                                pointerLabelComponent: (items: any) => {
-                                    if (items[0]) {
-                                        setTimeout(() => setSelectedTrendPoint({ label: items[0].label, value: items[0].value }), 0);
-                                    }
-                                    return null;
-                                },
-                            }}
-                        />
-                    </View>
-                </View>
+
             </ScrollView>
 
             {/* Category Detail Modal */}
@@ -786,9 +850,39 @@ const styles = StyleSheet.create({
         marginTop: 2,
     },
     txAmount: {
-        fontSize: 15,
+        fontSize: 16,
         fontWeight: 'bold',
         color: colors.textPrimary,
+    },
+    chartHeader: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: spacing.sm,
+    },
+    chartTitleRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    chartIconBadge: {
+        backgroundColor: colors.cardBackgroundLight,
+        padding: spacing.xs,
+        borderRadius: borderRadius.sm,
+    },
+    periodToggle: {
+        flexDirection: 'row',
+        backgroundColor: colors.cardBackgroundLight,
+        borderRadius: borderRadius.md,
+        padding: 3,
+    },
+    periodButton: {
+        paddingHorizontal: spacing.md,
+        paddingVertical: spacing.sm,
+        borderRadius: borderRadius.sm,
+    },
+    periodButtonActive: {
+        backgroundColor: colors.primary,
     },
     historyHeader: {
         flexDirection: 'row',

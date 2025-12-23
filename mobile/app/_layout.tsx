@@ -1,6 +1,7 @@
 import { DarkTheme, DefaultTheme, ThemeProvider } from '@react-navigation/native';
 import { Stack, Slot } from 'expo-router';
 import { StatusBar } from 'expo-status-bar';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
 import 'react-native-reanimated';
 // import '../global.css';
 
@@ -8,6 +9,7 @@ import { useColorScheme } from '@/hooks/use-color-scheme';
 import { AuthProvider, useAuth } from '../context/AuthContext';
 import { useEffect } from 'react';
 import { useRouter, useSegments } from 'expo-router';
+import { colors } from '../constants/Theme';
 
 const MainLayout = () => {
   const { user, isLoading } = useAuth();
@@ -26,6 +28,15 @@ const MainLayout = () => {
     }
   }, [user, isLoading, segments]);
 
+  // Show loading screen while checking auth state
+  if (isLoading) {
+    return (
+      <View style={loadingStyles.container}>
+        <ActivityIndicator size="large" color={colors.primary} />
+      </View>
+    );
+  }
+
   return (
     <Stack screenOptions={{ headerShown: false }}>
       <Stack.Screen name="(tabs)" />
@@ -34,6 +45,15 @@ const MainLayout = () => {
     </Stack>
   );
 };
+
+const loadingStyles = StyleSheet.create({
+  container: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: colors.background,
+  },
+});
 
 export default function RootLayout() {
   const colorScheme = useColorScheme();
