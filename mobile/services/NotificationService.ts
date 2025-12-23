@@ -1,5 +1,5 @@
 import { AppRegistry } from 'react-native';
-// import RNAndroidNotificationListener, { RNAndroidNotificationListenerHeadlessJsName } from 'react-native-android-notification-listener';
+// import RNAndroidNotificationListener from 'react-native-android-notification-listener';
 import axios from 'axios';
 import { API_URL } from '../constants/Config';
 import * as SecureStore from 'expo-secure-store';
@@ -55,3 +55,6 @@ export const headlessNotificationHandler = async ({ notification }: any) => {
 };
 
 // AppRegistry.registerHeadlessTask(RNAndroidNotificationListenerHeadlessJsName, () => headlessNotificationHandler);
+// Note: This requires a custom development client or APK build.
+// Uncommenting for production build:
+// AppRegistry.registerHeadlessTask('RNAndroidNotificationListenerHeadlessJs', () => headlessNotificationHandler); 

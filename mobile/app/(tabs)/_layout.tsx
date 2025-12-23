@@ -33,6 +33,7 @@ export default function TabLayout() {
         name="add"
         options={{
           title: '',
+          tabBarLabel: () => null,
           tabBarIcon: () => (
             <View style={styles.fabContainer}>
               <View style={styles.fab}>

@@ -7,6 +7,7 @@ import { colors, spacing, borderRadius } from '../../constants/Theme';
 import { Plus, Trash2, X, CreditCard, TrendingDown, Calendar } from 'lucide-react-native';
 import axios from 'axios';
 import { Alert } from 'react-native';
+import DebtPayoffSimulator from '../../components/DebtPayoffSimulator';
 
 interface Debt {
     id: string;
@@ -134,19 +135,8 @@ export default function DebtManager() {
                     </View>
                 </View>
 
-                {/* Smart Suggestion Card */}
-                <View style={styles.suggestionCard}>
-                    <View style={styles.suggestionHeader}>
-                        <Text style={styles.suggestionLabel}>SMART PAYOFF SUGGESTION</Text>
-                        <Calendar size={18} color={colors.primaryLight} />
-                    </View>
-                    <Text style={styles.suggestionValue}>
-                        ${safeExtra} <Text style={styles.suggestionSuffix}>/ month extra</Text>
-                    </Text>
-                    <Text style={styles.suggestionDescription}>
-                        Based on your income of ${income.toLocaleString()}, you can safely contribute this extra amount to pay off debt faster.
-                    </Text>
-                </View>
+                {/* Payoff Simulator */}
+                <DebtPayoffSimulator debts={debts} monthlyIncome={income} />
 
                 {/* Monthly Income */}
                 <View style={styles.incomeCard}>

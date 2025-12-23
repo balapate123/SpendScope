@@ -66,7 +66,32 @@ export default function Tools() {
             <View style={styles.section}>
                 <Text style={styles.sectionTitle}>DATA</Text>
                 <View style={styles.card}>
-                    <TouchableOpacity style={styles.settingRow}>
+                    <TouchableOpacity style={styles.settingRow} onPress={async () => {
+                        try {
+                            const res = await axios.get(`${API_URL}/transactions`);
+                            const transactions = res.data;
+
+                            const header = 'Date,Merchant,Amount,Type,Category\n';
+                            const csv = header + transactions.map((t: any) =>
+                                `${new Date(t.date).toISOString()},"${t.merchant}",${t.amount},${t.type},${t.category}`
+                            ).join('\n');
+
+                            // Dynamic import to avoid web breaking if these pkgs aren't installed or mockable on web
+                            const FileSystem = require('expo-file-system');
+                            const Sharing = require('expo-sharing');
+
+                            const fileUri = FileSystem.documentDirectory + 'spendscope_export.csv';
+                            await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
+
+                            if (await Sharing.isAvailableAsync()) {
+                                await Sharing.shareAsync(fileUri);
+                            } else {
+                                Alert.alert("Export", "Sharing is not available on this device");
+                            }
+                        } catch (e) {
+                            Alert.alert("Error", "Failed to export data");
+                        }
+                    }}>
                         <View style={styles.settingLeft}>
                             <View style={[styles.iconBox, { backgroundColor: colors.success + '30' }]}>
                                 <Download size={20} color={colors.success} />

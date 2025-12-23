@@ -30,6 +30,7 @@ export default function Insights() {
     const [selectedCategory, setSelectedCategory] = useState<CategoryData | null>(null);
     const [showCategoryModal, setShowCategoryModal] = useState(false);
     const [focusedPie, setFocusedPie] = useState<{ name: string; amount: number } | null>(null);
+    const [trendMode, setTrendMode] = useState<'7Days' | 'LastWeek' | 'Year'>('7Days');
     const [selectedTrendPoint, setSelectedTrendPoint] = useState<{ label: string, value: number } | null>(null);
 
     const fetchTransactions = async () => {
@@ -37,7 +38,7 @@ export default function Insights() {
             const res = await axios.get(`${API_URL}/transactions`);
             setTransactions(res.data);
         } catch (e) {
-            console.error('Failed to fetch transactions', e);
+            // console.error('Failed to fetch transactions', e);
         }
     };
 
@@ -52,9 +53,40 @@ export default function Insights() {
         }, [])
     );
 
-    // Calculate category breakdown
+    // Get date range based on trendMode
+    const getDateRange = (): { start: Date; end: Date } => {
+        const today = new Date();
+        const end = new Date(today);
+        end.setHours(23, 59, 59, 999);
+        const start = new Date(today);
+        start.setHours(0, 0, 0, 0);
+
+        if (trendMode === '7Days') {
+            start.setDate(today.getDate() - 6);
+        } else if (trendMode === 'LastWeek') {
+            start.setDate(today.getDate() - 13);
+            end.setDate(today.getDate() - 7);
+            end.setHours(23, 59, 59, 999);
+        } else if (trendMode === 'Year') {
+            start.setMonth(0, 1); // Jan 1 of current year
+        }
+
+        return { start, end };
+    };
+
+    // Get transactions filtered by period
+    const getFilteredExpenses = (): Transaction[] => {
+        const { start, end } = getDateRange();
+        return transactions.filter(t => {
+            if (t.type !== 'expense') return false;
+            const tDate = new Date(t.date);
+            return tDate >= start && tDate <= end;
+        });
+    };
+
+    // Calculate category breakdown (filtered by period)
     const getCategoryData = (): CategoryData[] => {
-        const expenses = transactions.filter(t => t.type === 'expense');
+        const expenses = getFilteredExpenses();
         const categoryTotals: Record<string, number> = {};
 
         expenses.forEach(t => {
@@ -70,6 +102,7 @@ export default function Insights() {
             'Transport': colors.categoryTransport,
             'Shopping': colors.categoryShopping,
             'Bills': colors.categoryBills,
+            'Entertainment': colors.warning,
             'Other': colors.categoryOther,
         };
 
@@ -79,6 +112,7 @@ export default function Insights() {
             'Transport': '🚗',
             'Shopping': '🛒',
             'Bills': '📄',
+            'Entertainment': '🎬',
             'Other': '📦',
         };
 
@@ -97,6 +131,7 @@ export default function Insights() {
     const totalSpent = categoryData.reduce((sum, c) => sum + c.amount, 0);
     const topCategory = categoryData[0];
 
+
     // Pie chart data with onPress handler and stroke for gaps
     const pieData = categoryData.map((c, index) => ({
         value: c.amount,
@@ -108,42 +143,62 @@ export default function Insights() {
         strokeColor: colors.cardBackground,
     }));
 
-    // Weekly trend data from real transactions - last 7 days chronologically
-    const getWeeklyTrendData = () => {
-        const dayAbbr = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
-        const last7Days = [];
+    // Trend Data Logic
+    const getTrendData = () => {
+        const today = new Date();
+        let dataPoints: { label: string, date: Date }[] = [];
 
-        for (let i = 6; i >= 0; i--) {
-            const date = new Date();
-            date.setDate(date.getDate() - i);
-            last7Days.push({
-                date,
-                label: dayAbbr[date.getDay()],
-            });
+        if (trendMode === '7Days') {
+            for (let i = 6; i >= 0; i--) {
+                const d = new Date(today);
+                d.setDate(today.getDate() - i);
+                dataPoints.push({ label: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()], date: d });
+            }
+        } else if (trendMode === 'LastWeek') {
+            for (let i = 13; i >= 7; i--) {
+                const d = new Date(today);
+                d.setDate(today.getDate() - i);
+                dataPoints.push({ label: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][d.getDay()], date: d });
+            }
+        } else if (trendMode === 'Year') {
+            for (let i = 0; i < 12; i++) {
+                const d = new Date(today.getFullYear(), i, 1);
+                dataPoints.push({ label: d.toLocaleString('default', { month: 'short' }), date: d });
+            }
         }
 
-        return last7Days.map(({ date, label }) => {
-            const dayStart = new Date(date);
-            dayStart.setHours(0, 0, 0, 0);
-            const dayEnd = new Date(date);
-            dayEnd.setHours(23, 59, 59, 999);
+        return dataPoints.map(({ label, date }) => {
+            let total = 0;
+            const start = new Date(date);
+            const end = new Date(date);
 
-            const dayTotal = transactions
+            if (trendMode === 'Year') {
+                start.setDate(1);
+                start.setHours(0, 0, 0, 0);
+                end.setMonth(start.getMonth() + 1);
+                end.setDate(0);
+                end.setHours(23, 59, 59, 999);
+            } else {
+                start.setHours(0, 0, 0, 0);
+                end.setHours(23, 59, 59, 999);
+            }
+
+            total = transactions
                 .filter(t => {
-                    const txDate = new Date(t.date);
-                    return t.type === 'expense' && txDate >= dayStart && txDate <= dayEnd;
+                    const tDate = new Date(t.date);
+                    return t.type === 'expense' && tDate >= start && tDate <= end;
                 })
                 .reduce((sum, t) => sum + t.amount, 0);
 
             return {
-                value: Math.round(dayTotal),
+                value: total,
                 label,
-                labelTextStyle: { color: colors.textSecondary, fontSize: 11 },
+                labelTextStyle: { color: colors.textSecondary, fontSize: 10 },
             };
         });
     };
 
-    const weeklyTrendData = getWeeklyTrendData();
+    const trendData = getTrendData();
 
     const openCategoryDetail = (category: CategoryData) => {
         setSelectedCategory(category);
@@ -151,7 +206,12 @@ export default function Insights() {
     };
 
     const getCategoryTransactions = (categoryName: string) => {
-        return transactions.filter(t => t.category === categoryName && t.type === 'expense');
+        const { start, end } = getDateRange();
+        return transactions.filter(t => {
+            if (t.category !== categoryName || t.type !== 'expense') return false;
+            const tDate = new Date(t.date);
+            return tDate >= start && tDate <= end;
+        });
     };
 
     return (
@@ -160,10 +220,34 @@ export default function Insights() {
                 {/* Header */}
                 <View style={styles.header}>
                     <Text style={styles.title}>Insights</Text>
-                    <View style={styles.periodBadge}>
-                        <Calendar size={14} color={colors.primary} />
-                        <Text style={styles.periodText}>This Month</Text>
+                    <View style={styles.periodSelector}>
+                        <TouchableOpacity
+                            style={[styles.periodBtn, trendMode === '7Days' && styles.periodBtnActive]}
+                            onPress={() => setTrendMode('7Days')}
+                        >
+                            <Text style={[styles.periodText, trendMode === '7Days' && styles.periodTextActive]}>7 Days</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.periodBtn, trendMode === 'LastWeek' && styles.periodBtnActive]}
+                            onPress={() => setTrendMode('LastWeek')}
+                        >
+                            <Text style={[styles.periodText, trendMode === 'LastWeek' && styles.periodTextActive]}>Lst Wk</Text>
+                        </TouchableOpacity>
+                        <TouchableOpacity
+                            style={[styles.periodBtn, trendMode === 'Year' && styles.periodBtnActive]}
+                            onPress={() => setTrendMode('Year')}
+                        >
+                            <Text style={[styles.periodText, trendMode === 'Year' && styles.periodTextActive]}>Year</Text>
+                        </TouchableOpacity>
                     </View>
+                </View>
+
+                {/* Total Spent Card */}
+                <View style={styles.totalSpentCard}>
+                    <Text style={styles.totalSpentLabel}>
+                        TOTAL SPENT • {trendMode === '7Days' ? 'Last 7 Days' : trendMode === 'LastWeek' ? 'Previous Week' : 'This Year'}
+                    </Text>
+                    <Text style={styles.totalSpentValue}>${totalSpent.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</Text>
                 </View>
 
                 {/* Top Category Card */}
@@ -264,11 +348,13 @@ export default function Insights() {
                     )}
                 </View>
 
-                {/* Weekly Trend */}
+                {/* Trends */}
                 <View style={styles.historyCard}>
                     <View style={styles.historyHeader}>
                         <View style={styles.trendTitleRow}>
-                            <Text style={styles.sectionTitle}>Weekly Trend</Text>
+                            <Text style={styles.sectionTitle}>
+                                {trendMode === 'Year' ? 'Monthly Trend' : 'Weekly Trend'}
+                            </Text>
                             <View style={styles.trendIconBadge}>
                                 <Activity size={14} color={colors.textSecondary} />
                             </View>
@@ -276,13 +362,13 @@ export default function Insights() {
                         {selectedTrendPoint && (
                             <View style={styles.selectedValueDisplay}>
                                 <Text style={styles.selectedValueDay}>{selectedTrendPoint.label}</Text>
-                                <Text style={styles.selectedValueAmount}>${selectedTrendPoint.value}</Text>
+                                <Text style={styles.selectedValueAmount}>${selectedTrendPoint.value.toLocaleString()}</Text>
                             </View>
                         )}
                     </View>
                     <View style={styles.barChartContainer}>
                         <LineChart
-                            data={weeklyTrendData}
+                            data={trendData}
                             color={colors.chartPurple}
                             thickness={3}
                             hideDataPoints={false}
@@ -393,20 +479,47 @@ const styles = StyleSheet.create({
         fontWeight: 'bold',
         color: colors.textPrimary,
     },
-    periodBadge: {
+    periodSelector: {
         flexDirection: 'row',
-        alignItems: 'center',
-        gap: spacing.xs,
-        backgroundColor: colors.cardBackground,
-        paddingHorizontal: spacing.md,
-        paddingVertical: spacing.sm,
-        borderRadius: borderRadius.full,
-        borderWidth: 1,
-        borderColor: colors.primary + '40',
+        backgroundColor: colors.cardBackgroundLight,
+        borderRadius: borderRadius.md,
+        padding: 3,
+        gap: 2,
+    },
+    periodBtn: {
+        paddingHorizontal: 10,
+        paddingVertical: 4,
+        borderRadius: borderRadius.sm,
+    },
+    periodBtnActive: {
+        backgroundColor: colors.primary,
     },
     periodText: {
-        color: colors.textSecondary,
         fontSize: 12,
+        color: colors.textMuted,
+        fontWeight: '600',
+    },
+    periodTextActive: {
+        color: colors.textPrimary,
+    },
+    totalSpentCard: {
+        marginHorizontal: spacing.lg,
+        backgroundColor: colors.primary,
+        padding: spacing.lg,
+        borderRadius: borderRadius.xl,
+        marginBottom: spacing.md,
+    },
+    totalSpentLabel: {
+        fontSize: 11,
+        fontWeight: '600',
+        color: colors.primaryLight,
+        letterSpacing: 1,
+        marginBottom: spacing.xs,
+    },
+    totalSpentValue: {
+        fontSize: 32,
+        fontWeight: 'bold',
+        color: colors.textPrimary,
     },
     topCategoryCard: {
         marginHorizontal: spacing.lg,

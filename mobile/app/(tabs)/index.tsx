@@ -23,6 +23,7 @@ export default function Dashboard() {
   const [showAddTransactionModal, setShowAddTransactionModal] = useState(false);
   const [chartType, setChartType] = useState<'bar' | 'line'>('line');
   const [selectedChartPoint, setSelectedChartPoint] = useState<{ label: string, value: number } | null>(null);
+  const [chartPeriod, setChartPeriod] = useState<'Month' | 'Year'>('Month');
 
   // Transaction form state
   const [txAmount, setTxAmount] = useState('');
@@ -108,34 +109,50 @@ export default function Dashboard() {
 
   const recentTransactions = transactions.slice(0, 5);
 
-  // Generate chart data for the last 7 days chronologically
+  // Generate chart data based on chartPeriod
   const getChartData = () => {
     const today = new Date();
-    const last7Days: { date: Date; label: string }[] = [];
+    let dataPoints: { date: Date; label: string }[] = [];
 
-    // Generate last 7 days ending with today
-    for (let i = 6; i >= 0; i--) {
-      const date = new Date(today);
-      date.setDate(today.getDate() - i);
-      const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
-      last7Days.push({ date, label: dayName });
+    if (chartPeriod === 'Month') {
+      // Last 7 days
+      for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(today.getDate() - i);
+        const dayName = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][date.getDay()];
+        dataPoints.push({ date, label: dayName });
+      }
+    } else {
+      // Year: 12 months
+      for (let i = 0; i < 12; i++) {
+        const date = new Date(today.getFullYear(), i, 1);
+        dataPoints.push({ date, label: date.toLocaleString('default', { month: 'short' }) });
+      }
     }
 
-    // Calculate totals for each day
-    return last7Days.map(({ date, label }) => {
-      const dayStart = new Date(date);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(date);
-      dayEnd.setHours(23, 59, 59, 999);
+    return dataPoints.map(({ date, label }) => {
+      const start = new Date(date);
+      const end = new Date(date);
 
-      const dayTotal = transactions
+      if (chartPeriod === 'Year') {
+        start.setDate(1);
+        start.setHours(0, 0, 0, 0);
+        end.setMonth(start.getMonth() + 1);
+        end.setDate(0);
+        end.setHours(23, 59, 59, 999);
+      } else {
+        start.setHours(0, 0, 0, 0);
+        end.setHours(23, 59, 59, 999);
+      }
+
+      const total = transactions
         .filter(t => {
           const txDate = new Date(t.date);
-          return t.type === 'expense' && txDate >= dayStart && txDate <= dayEnd;
+          return t.type === 'expense' && txDate >= start && txDate <= end;
         })
         .reduce((sum, t) => sum + t.amount, 0);
 
-      const roundedTotal = Math.round(dayTotal);
+      const roundedTotal = Math.round(total);
       return {
         value: roundedTotal,
         label,
@@ -162,6 +179,10 @@ export default function Dashboard() {
   const categories = txType === 'expense' ? EXPENSE_CATEGORIES : INCOME_CATEGORIES;
   const chartData = getChartData();
 
+  // Calculate total spent for the selected period
+  const totalSpentForPeriod = chartData.reduce((sum, d) => sum + d.value, 0);
+  const periodLabel = chartPeriod === 'Month' ? 'Last 7 Days' : 'This Year';
+
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
@@ -183,6 +204,12 @@ export default function Dashboard() {
           </View>
         </View>
 
+        {/* Total Spent Summary */}
+        <View style={styles.totalSpentCard}>
+          <Text style={styles.totalSpentLabel}>TOTAL SPENT • {periodLabel}</Text>
+          <Text style={styles.totalSpentValue}>${totalSpentForPeriod.toLocaleString()}</Text>
+        </View>
+
         {/* Trend Chart Card */}
         <View style={styles.chartCard}>
           <View style={styles.chartHeader}>
@@ -198,12 +225,16 @@ export default function Dashboard() {
             </View>
             <View style={styles.periodToggle}>
               <TouchableOpacity
-                style={[styles.periodButton, styles.periodButtonActive]}
+                style={[styles.periodButton, chartPeriod === 'Month' && styles.periodButtonActive]}
+                onPress={() => setChartPeriod('Month')}
               >
-                <Text style={styles.periodButtonTextActive}>Month</Text>
+                <Text style={chartPeriod === 'Month' ? styles.periodButtonTextActive : styles.periodButtonText}>Month</Text>
               </TouchableOpacity>
-              <TouchableOpacity style={styles.periodButton}>
-                <Text style={styles.periodButtonText}>Year</Text>
+              <TouchableOpacity
+                style={[styles.periodButton, chartPeriod === 'Year' && styles.periodButtonActive]}
+                onPress={() => setChartPeriod('Year')}
+              >
+                <Text style={chartPeriod === 'Year' ? styles.periodButtonTextActive : styles.periodButtonText}>Year</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -235,27 +266,32 @@ export default function Dashboard() {
           <View style={styles.chartContainer}>
             {chartType === 'bar' ? (
               <BarChart
+                key={`bar-${chartPeriod}`}
                 data={chartData}
-                barWidth={28}
-                spacing={18}
+                barWidth={chartPeriod === 'Year' ? 20 : 30}
+                spacing={chartPeriod === 'Year' ? 16 : 24}
+                width={chartPeriod === 'Year' ? 380 : 280}
                 roundedTop
                 roundedBottom
                 xAxisThickness={0}
                 yAxisThickness={0}
                 yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
                 noOfSections={4}
-                maxValue={Math.max(...chartData.map((d: any) => d.value), 10) * 1.3}
+                maxValue={Math.max(...chartData.map((d: any) => d.value), 100) * 1.2}
                 backgroundColor={colors.cardBackground}
                 hideRules
                 isAnimated
                 animationDuration={500}
                 barBorderRadius={6}
                 showValuesAsTopLabel
-                topLabelTextStyle={{ color: colors.textMuted, fontSize: 10 }}
+                topLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
+                scrollToEnd={chartPeriod === 'Year'}
               />
             ) : (
               <LineChart
+                key={`line-${chartPeriod}`}
                 data={chartData}
+                width={chartPeriod === 'Year' ? 380 : 280}
                 color={colors.chartPurple}
                 thickness={3}
                 hideDataPoints={false}
@@ -265,6 +301,7 @@ export default function Dashboard() {
                 yAxisThickness={0}
                 yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
                 noOfSections={4}
+                maxValue={Math.max(...chartData.map((d: any) => d.value), 100) * 1.2}
                 backgroundColor={colors.cardBackground}
                 hideRules
                 isAnimated
@@ -275,8 +312,10 @@ export default function Dashboard() {
                 endFillColor={colors.cardBackground}
                 startOpacity={0.3}
                 endOpacity={0.05}
-                initialSpacing={20}
-                endSpacing={20}
+                initialSpacing={15}
+                endSpacing={15}
+                spacing={chartPeriod === 'Year' ? 32 : 45}
+                scrollToEnd={chartPeriod === 'Year'}
                 pointerConfig={{
                   pointerStripHeight: 160,
                   pointerStripColor: 'rgba(150,150,150,0.6)',
@@ -484,6 +523,25 @@ const styles = StyleSheet.create({
   badgeText: {
     color: colors.textSecondary,
     fontSize: 12,
+  },
+  totalSpentCard: {
+    marginHorizontal: spacing.lg,
+    marginTop: spacing.lg,
+    backgroundColor: colors.primary,
+    padding: spacing.lg,
+    borderRadius: borderRadius.xl,
+  },
+  totalSpentLabel: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: colors.primaryLight,
+    letterSpacing: 1,
+    marginBottom: spacing.xs,
+  },
+  totalSpentValue: {
+    fontSize: 28,
+    fontWeight: 'bold',
+    color: colors.textPrimary,
   },
   chartCard: {
     marginHorizontal: spacing.lg,
@@ -712,6 +770,7 @@ const styles = StyleSheet.create({
   modalContent: {
     backgroundColor: colors.cardBackground,
     padding: spacing.lg,
+    paddingBottom: 90,
     borderTopLeftRadius: borderRadius.xl,
     borderTopRightRadius: borderRadius.xl,
   },
