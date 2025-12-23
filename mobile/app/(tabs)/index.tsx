@@ -1,4 +1,4 @@
-import { View, Text, ScrollView, TouchableOpacity, RefreshControl, TextInput, Modal, StyleSheet, Platform } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, RefreshControl, TextInput, Modal, StyleSheet, Platform, Dimensions } from 'react-native';
 import React, { useCallback, useState, useEffect } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import axios from 'axios';
@@ -11,6 +11,8 @@ import { Alert } from 'react-native';
 import { addTransactionEmitter } from '../../utils/addTransactionEmitter';
 import { useFocusEffect, router } from 'expo-router';
 import DateTimePicker from '@react-native-community/datetimepicker';
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
 
 // Predefined categories
 const EXPENSE_CATEGORIES = ['Food', 'Transport', 'Shopping', 'Bills', 'Entertainment', 'Health', 'Other'];
@@ -268,16 +270,20 @@ export default function Dashboard() {
               <BarChart
                 key={`bar-${chartPeriod}`}
                 data={chartData}
-                barWidth={chartPeriod === 'Year' ? 20 : 30}
-                spacing={chartPeriod === 'Year' ? 16 : 24}
-                width={chartPeriod === 'Year' ? 380 : 280}
+                barWidth={chartPeriod === 'Year' ? 28 : 36}
+                spacing={chartPeriod === 'Year' ? 24 : 30}
+                initialSpacing={20}
+                endSpacing={20}
                 roundedTop
                 roundedBottom
                 xAxisThickness={0}
                 yAxisThickness={0}
                 yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
                 noOfSections={4}
-                maxValue={Math.max(...chartData.map((d: any) => d.value), 100) * 1.2}
+                maxValue={(() => {
+                  const maxVal = Math.max(...chartData.map((d: any) => d.value));
+                  return maxVal > 0 ? Math.ceil(maxVal * 1.25) : 100;
+                })()}
                 backgroundColor={colors.cardBackground}
                 hideRules
                 isAnimated
@@ -285,54 +291,56 @@ export default function Dashboard() {
                 barBorderRadius={6}
                 showValuesAsTopLabel
                 topLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
-                scrollToEnd={chartPeriod === 'Year'}
               />
             ) : (
-              <LineChart
-                key={`line-${chartPeriod}`}
-                data={chartData}
-                width={chartPeriod === 'Year' ? 380 : 280}
-                color={colors.chartPurple}
-                thickness={3}
-                hideDataPoints={false}
-                dataPointsColor={colors.chartPurple}
-                dataPointsRadius={5}
-                xAxisThickness={0}
-                yAxisThickness={0}
-                yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
-                noOfSections={4}
-                maxValue={Math.max(...chartData.map((d: any) => d.value), 100) * 1.2}
-                backgroundColor={colors.cardBackground}
-                hideRules
-                isAnimated
-                animationDuration={800}
-                curved
-                areaChart
-                startFillColor={colors.chartPurple}
-                endFillColor={colors.cardBackground}
-                startOpacity={0.3}
-                endOpacity={0.05}
-                initialSpacing={15}
-                endSpacing={15}
-                spacing={chartPeriod === 'Year' ? 32 : 45}
-                scrollToEnd={chartPeriod === 'Year'}
-                pointerConfig={{
-                  pointerStripHeight: 160,
-                  pointerStripColor: 'rgba(150,150,150,0.6)',
-                  pointerStripWidth: 2,
-                  pointerColor: colors.chartPurple,
-                  radius: 8,
-                  pointerLabelWidth: 0,
-                  pointerLabelHeight: 0,
-                  pointerLabelComponent: (items: any) => {
-                    // Update state instead of rendering tooltip
-                    if (items[0]) {
-                      setTimeout(() => setSelectedChartPoint({ label: items[0].label, value: items[0].value }), 0);
-                    }
-                    return null;
-                  },
-                }}
-              />
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
+                <LineChart
+                  key={`line-${chartPeriod}`}
+                  data={chartData}
+                  color={colors.chartPurple}
+                  thickness={3}
+                  hideDataPoints={false}
+                  dataPointsColor={colors.chartPurple}
+                  dataPointsRadius={5}
+                  spacing={chartPeriod === 'Year' ? 60 : 70}
+                  initialSpacing={20}
+                  endSpacing={40}
+                  xAxisThickness={0}
+                  yAxisThickness={0}
+                  yAxisTextStyle={{ color: colors.textMuted, fontSize: 10 }}
+                  noOfSections={4}
+                  maxValue={(() => {
+                    const maxVal = Math.max(...chartData.map((d: any) => d.value));
+                    return maxVal > 0 ? Math.ceil(maxVal * 1.25) : 100;
+                  })()}
+                  backgroundColor={colors.cardBackground}
+                  hideRules
+                  isAnimated
+                  animationDuration={800}
+                  curved
+                  areaChart
+                  startFillColor={colors.chartPurple}
+                  endFillColor={colors.cardBackground}
+                  startOpacity={0.3}
+                  endOpacity={0.05}
+                  pointerConfig={{
+                    pointerStripHeight: 160,
+                    pointerStripColor: 'rgba(150,150,150,0.6)',
+                    pointerStripWidth: 2,
+                    pointerColor: colors.chartPurple,
+                    radius: 8,
+                    pointerLabelWidth: 0,
+                    pointerLabelHeight: 0,
+                    pointerLabelComponent: (items: any) => {
+                      // Update state instead of rendering tooltip
+                      if (items[0]) {
+                        setTimeout(() => setSelectedChartPoint({ label: items[0].label, value: items[0].value }), 0);
+                      }
+                      return null;
+                    },
+                  }}
+                />
+              </ScrollView>
             )}
           </View>
         </View>
@@ -477,7 +485,7 @@ export default function Dashboard() {
           </View>
         </View>
       </Modal>
-    </SafeAreaView>
+    </SafeAreaView >
   );
 }
 
