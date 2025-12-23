@@ -1,5 +1,5 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Dimensions } from 'react-native';
-import React, { useState, useEffect, useCallback } from 'react';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Dimensions, Animated, Easing } from 'react-native';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, borderRadius } from '../../constants/Theme';
 import { Calendar, Trophy, ChevronRight, X, BarChart2, Activity } from 'lucide-react-native';
@@ -36,6 +36,16 @@ export default function Insights() {
     const [selectedTrendPoint, setSelectedTrendPoint] = useState<{ label: string, value: number } | null>(null);
     const [chartType, setChartType] = useState<'bar' | 'line'>('line');
 
+    // Spiral animation for donut chart
+    const spiralScale = useRef(new Animated.Value(0)).current;
+    const spiralRotation = useRef(new Animated.Value(0)).current;
+    const spiralOpacity = useRef(new Animated.Value(0)).current;
+
+    // Reset selected trend point when chart type changes to prevent stale data
+    useEffect(() => {
+        setSelectedTrendPoint(null);
+    }, [chartType]);
+
     const fetchTransactions = async () => {
         try {
             const res = await axios.get(`${API_URL}/transactions`);
@@ -49,10 +59,36 @@ export default function Insights() {
         fetchTransactions();
     }, []);
 
-    // Refresh when screen gains focus
+    // Refresh when screen gains focus and trigger spiral animation
     useFocusEffect(
         useCallback(() => {
             fetchTransactions();
+
+            // Reset animation values
+            spiralScale.setValue(0);
+            spiralRotation.setValue(0);
+            spiralOpacity.setValue(0);
+
+            // Spiral entrance animation
+            Animated.parallel([
+                Animated.timing(spiralOpacity, {
+                    toValue: 1,
+                    duration: 300,
+                    useNativeDriver: true,
+                }),
+                Animated.timing(spiralScale, {
+                    toValue: 1,
+                    duration: 800,
+                    easing: Easing.out(Easing.back(1.5)),
+                    useNativeDriver: true,
+                }),
+                Animated.timing(spiralRotation, {
+                    toValue: 1,
+                    duration: 800,
+                    easing: Easing.out(Easing.cubic),
+                    useNativeDriver: true,
+                }),
+            ]).start();
         }, [])
     );
 
@@ -135,16 +171,24 @@ export default function Insights() {
     const topCategory = categoryData[0];
 
 
-    // Pie chart data with onPress handler and stroke for gaps
+    // Pie chart data with onPress handler, enhanced focus animation, and stroke for gaps
     const pieData = categoryData.map((c, index) => ({
         value: c.amount,
         color: c.color,
         text: c.name,
         focused: focusedPie?.name === c.name,
         onPress: () => setFocusedPie({ name: c.name, amount: c.amount }),
-        strokeWidth: 3,
+        strokeWidth: 2,
         strokeColor: colors.cardBackground,
+        shiftX: focusedPie?.name === c.name ? Math.cos((index / categoryData.length) * 2 * Math.PI - Math.PI / 2) * 8 : 0,
+        shiftY: focusedPie?.name === c.name ? Math.sin((index / categoryData.length) * 2 * Math.PI - Math.PI / 2) * 8 : 0,
     }));
+
+    // Spiral animation interpolations
+    const spiralRotationInterpolate = spiralRotation.interpolate({
+        inputRange: [0, 1],
+        outputRange: ['360deg', '0deg'],
+    });
 
     // Trend Data Logic
     const getTrendData = () => {
@@ -275,8 +319,112 @@ export default function Insights() {
                     </View>
                 )}
 
-                {/* Trend Chart */}
-                <View style={[styles.breakdownCard, { minHeight: 400 }]}>
+                {/* Spending Breakdown */}
+                <View style={styles.breakdownCard}>
+                    <Text style={styles.sectionTitle}>Spending Breakdown</Text>
+
+                    {pieData.length > 0 ? (
+                        <Animated.View style={[
+                            styles.chartContainer,
+                            {
+                                opacity: spiralOpacity,
+                                transform: [
+                                    { scale: spiralScale },
+                                    { rotate: spiralRotationInterpolate },
+                                ],
+                            },
+                        ]}>
+                            <PieChart
+                                data={pieData}
+                                donut
+                                radius={90}
+                                innerRadius={70}
+                                innerCircleColor={colors.cardBackground}
+                                focusOnPress
+                                sectionAutoFocus
+                                centerLabelComponent={() => (
+                                    <Animated.View style={[
+                                        styles.centerLabel,
+                                        {
+                                            opacity: spiralOpacity,
+                                            transform: [
+                                                {
+                                                    rotate: spiralRotation.interpolate({
+                                                        inputRange: [0, 1],
+                                                        outputRange: ['-360deg', '0deg'],
+                                                    })
+                                                },
+                                            ],
+                                        },
+                                    ]}>
+                                        {focusedPie ? (
+                                            <View style={styles.centerLabelBox}>
+                                                <Text style={styles.centerLabelCategoryName}>{focusedPie.name}</Text>
+                                                <Text style={styles.centerLabelAmount}>${focusedPie.amount.toLocaleString()}</Text>
+                                            </View>
+                                        ) : (
+                                            <View style={styles.centerLabelBoxEmpty}>
+                                                <Text style={styles.centerLabelHint}>Tap a</Text>
+                                                <Text style={styles.centerLabelHint}>segment</Text>
+                                            </View>
+                                        )}
+                                    </Animated.View>
+                                )}
+                            />
+                        </Animated.View>
+                    ) : (
+                        <View style={styles.emptyChart}>
+                            <Text style={styles.emptyText}>No spending data yet</Text>
+                        </View>
+                    )}
+
+                    {/* Legend */}
+                    <View style={styles.legend}>
+                        {categoryData.map((cat) => (
+                            <View key={cat.name} style={styles.legendItem}>
+                                <View style={[styles.legendDot, { backgroundColor: cat.color }]} />
+                                <Text style={styles.legendText}>{cat.name}</Text>
+                            </View>
+                        ))}
+                    </View>
+                </View>
+
+                {/* Category Details */}
+                <View style={styles.categorySection}>
+                    <Text style={styles.sectionTitle}>Category Details</Text>
+                    <Text style={styles.sectionSubtitle}>Tap a category to see transactions</Text>
+
+                    {categoryData.map((cat) => (
+                        <TouchableOpacity
+                            key={cat.name}
+                            style={styles.categoryCard}
+                            onPress={() => openCategoryDetail(cat)}
+                        >
+                            <View style={styles.categoryLeft}>
+                                <View style={[styles.categoryIcon, { backgroundColor: cat.color + '20' }]}>
+                                    <Text style={styles.categoryEmoji}>{cat.icon}</Text>
+                                </View>
+                                <View>
+                                    <Text style={styles.categoryName}>{cat.name}</Text>
+                                    <Text style={styles.categoryPercentage}>{cat.percentage}% of total</Text>
+                                </View>
+                            </View>
+                            <View style={styles.categoryRight}>
+                                <Text style={styles.categoryAmount}>${cat.amount.toFixed(2)}</Text>
+                                <ChevronRight size={18} color={colors.textMuted} />
+                            </View>
+                        </TouchableOpacity>
+                    ))}
+
+                    {categoryData.length === 0 && (
+                        <View style={styles.emptyState}>
+                            <Text style={styles.emptyText}>Add some transactions to see insights</Text>
+                        </View>
+                    )}
+                </View>
+
+                {/* Trend Chart - Spending History */}
+                <View style={[styles.breakdownCard, { minHeight: 400, marginBottom: 100 }]}>
                     <View style={styles.chartHeader}>
                         <View style={styles.chartTitleRow}>
                             <Text style={styles.sectionTitle}>Spending History</Text>
@@ -295,7 +443,6 @@ export default function Insights() {
                                 style={[styles.periodButton, chartType === 'line' && styles.periodButtonActive]}
                                 onPress={() => setChartType('line')}
                             >
-                                {/* Using Activity icon as placeholder for Line Chart icon equivalent */}
                                 <Activity size={16} color={chartType === 'line' ? colors.textPrimary : colors.textMuted} />
                             </TouchableOpacity>
                         </View>
@@ -311,7 +458,7 @@ export default function Insights() {
                         )}
                     </View>
 
-                    <View style={styles.chartContainer}>
+                    <View style={[styles.chartContainer, { overflow: 'hidden' }]}>
                         {chartType === 'bar' ? (
                             <BarChart
                                 key={`bar-${trendMode}`}
@@ -338,6 +485,9 @@ export default function Insights() {
                                 barBorderRadius={6}
                                 showValuesAsTopLabel
                                 topLabelTextStyle={{ color: colors.textMuted, fontSize: 9 }}
+                                onPress={(item: any) => {
+                                    setSelectedTrendPoint({ label: item.label, value: item.value });
+                                }}
                             />
                         ) : (
                             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={{ paddingRight: 20 }}>
@@ -389,86 +539,6 @@ export default function Insights() {
                             </ScrollView>
                         )}
                     </View>
-                </View>
-
-                {/* Spending Breakdown */}
-                <View style={styles.breakdownCard}>
-                    <Text style={styles.sectionTitle}>Spending Breakdown</Text>
-
-                    {pieData.length > 0 ? (
-                        <View style={styles.chartContainer}>
-                            <PieChart
-                                data={pieData}
-                                donut
-                                radius={100}
-                                innerRadius={60}
-                                innerCircleColor={colors.cardBackground}
-                                focusOnPress
-                                sectionAutoFocus
-                                centerLabelComponent={() => (
-                                    <View style={styles.centerLabel}>
-                                        {focusedPie ? (
-                                            <View style={styles.centerLabelBox}>
-                                                <Text style={styles.centerLabelBoxText}>{focusedPie.name} : ${focusedPie.amount.toFixed(0)}</Text>
-                                            </View>
-                                        ) : (
-                                            <View style={styles.centerLabelBox}>
-                                                <Text style={styles.centerLabelBoxText}>Tap segment</Text>
-                                            </View>
-                                        )}
-                                    </View>
-                                )}
-                            />
-                        </View>
-                    ) : (
-                        <View style={styles.emptyChart}>
-                            <Text style={styles.emptyText}>No spending data yet</Text>
-                        </View>
-                    )}
-
-                    {/* Legend */}
-                    <View style={styles.legend}>
-                        {categoryData.map((cat) => (
-                            <View key={cat.name} style={styles.legendItem}>
-                                <View style={[styles.legendDot, { backgroundColor: cat.color }]} />
-                                <Text style={styles.legendText}>{cat.name}</Text>
-                            </View>
-                        ))}
-                    </View>
-                </View>
-
-                {/* Category Details */}
-                <View style={styles.categorySection}>
-                    <Text style={styles.sectionTitle}>Category Details</Text>
-                    <Text style={styles.sectionSubtitle}>Tap a category to see transactions</Text>
-
-                    {categoryData.map((cat) => (
-                        <TouchableOpacity
-                            key={cat.name}
-                            style={styles.categoryCard}
-                            onPress={() => openCategoryDetail(cat)}
-                        >
-                            <View style={styles.categoryLeft}>
-                                <View style={[styles.categoryIcon, { backgroundColor: cat.color + '20' }]}>
-                                    <Text style={styles.categoryEmoji}>{cat.icon}</Text>
-                                </View>
-                                <View>
-                                    <Text style={styles.categoryName}>{cat.name}</Text>
-                                    <Text style={styles.categoryPercentage}>{cat.percentage}% of total</Text>
-                                </View>
-                            </View>
-                            <View style={styles.categoryRight}>
-                                <Text style={styles.categoryAmount}>${cat.amount.toFixed(2)}</Text>
-                                <ChevronRight size={18} color={colors.textMuted} />
-                            </View>
-                        </TouchableOpacity>
-                    ))}
-
-                    {categoryData.length === 0 && (
-                        <View style={styles.emptyState}>
-                            <Text style={styles.emptyText}>Add some transactions to see insights</Text>
-                        </View>
-                    )}
                 </View>
 
 
@@ -653,10 +723,30 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
     },
     centerLabelBox: {
-        backgroundColor: 'rgba(30, 30, 40, 0.9)',
-        paddingHorizontal: 12,
-        paddingVertical: 8,
-        borderRadius: 8,
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    centerLabelBoxEmpty: {
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    centerLabelCategoryName: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: colors.textSecondary,
+        textAlign: 'center',
+    },
+    centerLabelAmount: {
+        fontSize: 18,
+        fontWeight: 'bold',
+        color: colors.primary,
+        textAlign: 'center',
+        marginTop: 2,
+    },
+    centerLabelHint: {
+        fontSize: 12,
+        color: colors.textMuted,
+        textAlign: 'center',
     },
     centerLabelBoxText: {
         fontSize: 14,
