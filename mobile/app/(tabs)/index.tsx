@@ -195,7 +195,7 @@ export default function Dashboard() {
         {/* Header */}
         <View style={styles.header}>
           <Text style={styles.greeting}>Welcome back,</Text>
-          <Text style={styles.userName}>{user?.name || (user?.email || '').split('@')[0]}</Text>
+          <Text style={styles.userName}>{((user?.name || (user?.email || '').split('@')[0]) || '').charAt(0).toUpperCase() + ((user?.name || (user?.email || '').split('@')[0]) || '').slice(1)}</Text>
         </View>
 
         {/* Auto-Capture Badge */}

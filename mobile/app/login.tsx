@@ -44,7 +44,7 @@ export default function Login() {
                     <View style={styles.logoCircle}>
                         <DollarSign size={40} color={colors.primary} />
                     </View>
-                    <Text style={styles.appName}>SpendScope</Text>
+                    <Text style={styles.appName}>MoneyMap</Text>
                     <Text style={styles.tagline}>Smart Finance Tracking</Text>
                 </View>
 

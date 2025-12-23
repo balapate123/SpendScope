@@ -1,4 +1,4 @@
-// Theme constants for SpendScope dark mode
+// Theme constants for MoneyMap dark mode
 export const colors = {
   // Backgrounds
   background: '#0f0f1a',

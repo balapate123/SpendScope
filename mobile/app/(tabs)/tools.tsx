@@ -80,7 +80,7 @@ export default function Tools() {
                             const FileSystem = require('expo-file-system');
                             const Sharing = require('expo-sharing');
 
-                            const fileUri = FileSystem.documentDirectory + 'spendscope_export.csv';
+                            const fileUri = FileSystem.documentDirectory + 'moneymap_export.csv';
                             await FileSystem.writeAsStringAsync(fileUri, csv, { encoding: FileSystem.EncodingType.UTF8 });
 
                             if (await Sharing.isAvailableAsync()) {
