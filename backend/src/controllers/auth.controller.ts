@@ -8,6 +8,7 @@ import { AuthRequest } from '../middleware/auth.middleware';
 const registerSchema = z.object({
     email: z.string().email(),
     password: z.string().min(6),
+    name: z.string().optional(),
     currency: z.string().optional(),
 });
 
@@ -18,7 +19,7 @@ const loginSchema = z.object({
 
 export const register = async (req: AuthRequest, res: Response) => {
     try {
-        const { email, password, currency } = registerSchema.parse(req.body);
+        const { email, password, name, currency } = registerSchema.parse(req.body);
 
         const existingUser = await prisma.user.findUnique({ where: { email } });
         if (existingUser) {
@@ -29,6 +30,7 @@ export const register = async (req: AuthRequest, res: Response) => {
         const user = await prisma.user.create({
             data: {
                 email,
+                name: name ?? null,
                 passwordHash: hashedPassword,
                 preferences: { currency: currency || 'USD', theme: 'dark' },
             },
@@ -38,7 +40,7 @@ export const register = async (req: AuthRequest, res: Response) => {
             expiresIn: '7d',
         });
 
-        res.status(201).json({ token, user: { id: user.id, email: user.email, preferences: user.preferences } });
+        res.status(201).json({ token, user: { id: user.id, email: user.email, name: user.name, preferences: user.preferences } });
     } catch (error) {
         res.status(400).json({ message: 'Invalid input', error });
     }
@@ -62,7 +64,7 @@ export const login = async (req: AuthRequest, res: Response) => {
             expiresIn: '7d',
         });
 
-        res.json({ token, user: { id: user.id, email: user.email, preferences: user.preferences } });
+        res.json({ token, user: { id: user.id, email: user.email, name: user.name, preferences: user.preferences } });
     } catch (error) {
         res.status(400).json({ message: 'Invalid input', error });
     }

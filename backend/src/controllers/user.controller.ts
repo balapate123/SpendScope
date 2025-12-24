@@ -19,6 +19,7 @@ export const getProfile = async (req: AuthRequest, res: Response) => {
             select: {
                 id: true,
                 email: true,
+                name: true,
                 preferences: true,
                 netWorth: true,
                 monthlyIncome: true,

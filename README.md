@@ -1,6 +1,6 @@
-# SpendScope 💳
+# MoneyMap 💳
 
-SpendScope is a premium personal finance tracking application built for mobile (iOS/Android) and web. It features a modern, high-performance UI with advanced charting to help you visualize your spending habits and master your money.
+MoneyMap (formerly SpendScope) is a premium personal finance tracking application built for mobile (iOS/Android) and web. It features a modern, high-performance UI with advanced charting to help you visualize your spending habits and master your money.
 
 ## ✨ Features
 
