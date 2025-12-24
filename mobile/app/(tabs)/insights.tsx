@@ -1,8 +1,8 @@
-import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Dimensions, Animated, Easing } from 'react-native';
+import { View, Text, ScrollView, TouchableOpacity, StyleSheet, Modal, Dimensions, Animated, Easing, TextInput, Alert } from 'react-native';
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { colors, spacing, borderRadius } from '../../constants/Theme';
-import { Calendar, Trophy, ChevronRight, X, BarChart2, Activity } from 'lucide-react-native';
+import { Calendar, Trophy, ChevronRight, X, BarChart2, Activity, Edit2, Trash2 } from 'lucide-react-native';
 import { PieChart, LineChart, BarChart } from 'react-native-gifted-charts';
 import axios from 'axios';
 import { API_URL } from '../../constants/Config';
@@ -35,6 +35,14 @@ export default function Insights() {
     const [trendMode, setTrendMode] = useState<'7Days' | 'LastWeek' | 'Year'>('7Days');
     const [selectedTrendPoint, setSelectedTrendPoint] = useState<{ label: string, value: number } | null>(null);
     const [chartType, setChartType] = useState<'bar' | 'line'>('line');
+
+    // Edit transaction state
+    const [showEditModal, setShowEditModal] = useState(false);
+    const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
+    const [editMerchant, setEditMerchant] = useState('');
+    const [editAmount, setEditAmount] = useState('');
+    const [editCategory, setEditCategory] = useState('');
+    const [editType, setEditType] = useState<'income' | 'expense'>('expense');
 
     // Spiral animation for donut chart
     const spiralScale = useRef(new Animated.Value(0)).current;
@@ -263,6 +271,45 @@ export default function Insights() {
             const tDate = new Date(t.date);
             return tDate >= start && tDate <= end;
         });
+    };
+
+    const openEditModal = (tx: Transaction) => {
+        setEditingTransaction(tx);
+        setEditMerchant(tx.merchant);
+        setEditAmount(tx.amount.toString());
+        setEditCategory(tx.category);
+        setEditType(tx.type as 'income' | 'expense');
+        setShowEditModal(true);
+    };
+
+    const saveTransaction = async () => {
+        if (!editingTransaction) return;
+        try {
+            await axios.patch(`${API_URL}/transactions/${editingTransaction.id}`, {
+                merchant: editMerchant,
+                amount: parseFloat(editAmount),
+                category: editCategory,
+                type: editType,
+            });
+            setShowEditModal(false);
+            setEditingTransaction(null);
+            fetchTransactions();
+        } catch (e) {
+            console.error('Failed to update transaction', e);
+        }
+    };
+
+    const deleteTransactionHandler = async () => {
+        if (!editingTransaction) return;
+        try {
+            await axios.delete(`${API_URL}/transactions/${editingTransaction.id}`);
+            setShowEditModal(false);
+            setShowCategoryModal(false);
+            setEditingTransaction(null);
+            fetchTransactions();
+        } catch (e) {
+            console.error('Failed to delete transaction', e);
+        }
     };
 
     return (
@@ -570,7 +617,7 @@ export default function Insights() {
 
                         <ScrollView style={styles.transactionList}>
                             {selectedCategory && getCategoryTransactions(selectedCategory.name).map((tx) => (
-                                <View key={tx.id} style={styles.transactionItem}>
+                                <TouchableOpacity key={tx.id} style={styles.transactionItem} onPress={() => openEditModal(tx)}>
                                     <View style={styles.transactionLeft}>
                                         <View style={[styles.txIcon, { backgroundColor: colors.danger + '20' }]}>
                                             <Text style={styles.txArrow}>↙</Text>
@@ -580,14 +627,94 @@ export default function Insights() {
                                             <Text style={styles.txDate}>{new Date(tx.date).toLocaleDateString()}</Text>
                                         </View>
                                     </View>
-                                    <Text style={styles.txAmount}>-${tx.amount.toFixed(2)}</Text>
-                                </View>
+                                    <View style={styles.txRight}>
+                                        <Text style={styles.txAmount}>-${tx.amount.toFixed(2)}</Text>
+                                        <Edit2 size={16} color={colors.textMuted} />
+                                    </View>
+                                </TouchableOpacity>
                             ))}
 
                             {selectedCategory && getCategoryTransactions(selectedCategory.name).length === 0 && (
                                 <Text style={styles.emptyText}>No transactions in this category</Text>
                             )}
                         </ScrollView>
+                    </View>
+                </View>
+            </Modal>
+
+            {/* Edit Transaction Modal */}
+            <Modal
+                visible={showEditModal}
+                transparent
+                animationType="slide"
+                onRequestClose={() => setShowEditModal(false)}
+            >
+                <View style={styles.modalOverlay}>
+                    <View style={styles.modalContent}>
+                        <View style={styles.modalHeader}>
+                            <Text style={styles.modalTitle}>Edit Transaction</Text>
+                            <TouchableOpacity onPress={() => setShowEditModal(false)}>
+                                <X color={colors.textMuted} size={24} />
+                            </TouchableOpacity>
+                        </View>
+
+                        <TextInput
+                            style={styles.editInput}
+                            value={editMerchant}
+                            onChangeText={setEditMerchant}
+                            placeholder="Merchant"
+                            placeholderTextColor={colors.textMuted}
+                        />
+
+                        <TextInput
+                            style={styles.editInput}
+                            value={editAmount}
+                            onChangeText={setEditAmount}
+                            placeholder="Amount"
+                            placeholderTextColor={colors.textMuted}
+                            keyboardType="numeric"
+                        />
+
+                        <TextInput
+                            style={styles.editInput}
+                            value={editCategory}
+                            onChangeText={setEditCategory}
+                            placeholder="Category"
+                            placeholderTextColor={colors.textMuted}
+                        />
+
+                        <View style={styles.typeSelector}>
+                            <TouchableOpacity
+                                style={[styles.typeBtn, editType === 'expense' && styles.typeBtnActiveExpense]}
+                                onPress={() => setEditType('expense')}
+                            >
+                                <Text style={[styles.typeText, editType === 'expense' && styles.typeTextActive]}>Expense</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                                style={[styles.typeBtn, editType === 'income' && styles.typeBtnActiveIncome]}
+                                onPress={() => setEditType('income')}
+                            >
+                                <Text style={[styles.typeText, editType === 'income' && styles.typeTextActive]}>Income</Text>
+                            </TouchableOpacity>
+                        </View>
+
+                        <View style={styles.editButtonRow}>
+                            <TouchableOpacity
+                                style={styles.deleteBtn}
+                                onPress={() => {
+                                    Alert.alert('Delete Transaction', 'Are you sure you want to delete this transaction?', [
+                                        { text: 'Cancel', style: 'cancel' },
+                                        { text: 'Delete', style: 'destructive', onPress: deleteTransactionHandler },
+                                    ]);
+                                }}
+                            >
+                                <Trash2 size={18} color={colors.danger} />
+                                <Text style={styles.deleteBtnText}>Delete</Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity style={styles.saveBtn} onPress={saveTransaction}>
+                                <Text style={styles.saveBtnText}>Save Changes</Text>
+                            </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </Modal>
@@ -1036,5 +1163,81 @@ const styles = StyleSheet.create({
         borderWidth: 1,
         borderColor: 'rgba(255,255,255,0.1)',
         marginTop: 8,
+    },
+    // Edit transaction styles
+    txRight: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: spacing.sm,
+    },
+    editInput: {
+        backgroundColor: colors.cardBackgroundLight,
+        padding: spacing.md,
+        borderRadius: borderRadius.md,
+        fontSize: 16,
+        color: colors.textPrimary,
+        marginBottom: spacing.md,
+    },
+    typeSelector: {
+        flexDirection: 'row',
+        gap: spacing.sm,
+        marginBottom: spacing.lg,
+    },
+    typeBtn: {
+        flex: 1,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.md,
+        borderWidth: 1,
+        borderColor: colors.cardBackgroundLight,
+        alignItems: 'center',
+    },
+    typeBtnActiveExpense: {
+        backgroundColor: colors.danger + '20',
+        borderColor: colors.danger,
+    },
+    typeBtnActiveIncome: {
+        backgroundColor: colors.success + '20',
+        borderColor: colors.success,
+    },
+    typeText: {
+        fontSize: 14,
+        color: colors.textMuted,
+    },
+    typeTextActive: {
+        color: colors.textPrimary,
+        fontWeight: '600',
+    },
+    editButtonRow: {
+        flexDirection: 'row',
+        gap: spacing.md,
+        marginTop: spacing.sm,
+    },
+    deleteBtn: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: spacing.sm,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.md,
+        borderWidth: 1,
+        borderColor: colors.danger,
+    },
+    deleteBtnText: {
+        fontSize: 14,
+        color: colors.danger,
+        fontWeight: '600',
+    },
+    saveBtn: {
+        flex: 2,
+        paddingVertical: spacing.md,
+        borderRadius: borderRadius.md,
+        backgroundColor: colors.primary,
+        alignItems: 'center',
+    },
+    saveBtnText: {
+        fontSize: 14,
+        color: colors.textPrimary,
+        fontWeight: '600',
     },
 });
