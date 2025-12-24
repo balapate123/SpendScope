@@ -20,6 +20,7 @@ interface AuthContextType {
     login: (token: string, user: User) => Promise<void>;
     logout: () => Promise<void>;
     updateUser: (data: Partial<User>) => void;
+    refreshUser: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -29,6 +30,7 @@ const AuthContext = createContext<AuthContextType>({
     login: async () => { },
     logout: async () => { },
     updateUser: () => { },
+    refreshUser: async () => { },
 });
 
 export const useAuth = () => useContext(AuthContext);
@@ -78,10 +80,19 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
         }
     };
 
+    const refreshUser = async () => {
+        try {
+            const response = await axios.get(`${API_URL}/users/me`);
+            setUser(response.data);
+        } catch (e) {
+            // Silently handle
+        }
+    };
+
     const isAuthenticated = !!user;
 
     return (
-        <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout, updateUser }}>
+        <AuthContext.Provider value={{ user, isLoading, isAuthenticated, login, logout, updateUser, refreshUser }}>
             {children}
         </AuthContext.Provider>
     );
